@@ -1,0 +1,66 @@
+# Dev Automation Scripts
+
+## Setup
+
+```bash
+pip install requests
+```
+
+Crée un fichier `.env` (ou exporte dans ton shell) :
+
+```bash
+export GITHUB_TOKEN="ghp_..."       # github.com > Settings > Developer settings > PAT
+export NOTION_TOKEN="secret_..."    # notion.so > Settings > Integrations > New integration
+export LINEAR_TOKEN="lin_api_..."   # linear.app > Settings > API > Personal API keys
+```
+
+---
+
+## work_tracker.py
+
+Fetch toutes tes PRs GitHub de la semaine + tes reviews, et crée une page Notion dans ton work tracker.
+
+```bash
+python work_tracker.py
+```
+
+**Cron — tous les vendredis à 18h :**
+```
+0 18 * * 5 cd /path/to/scripts && python work_tracker.py >> logs/work_tracker.log 2>&1
+```
+
+---
+
+## standup.py
+
+Fetch tes tickets Linear updated + tes PRs GitHub d'hier, et génère un standup prêt à coller dans Slack.
+
+```bash
+# Affiche dans le terminal
+python standup.py
+
+# Copie directement dans le clipboard (macOS)
+python standup.py | tail -n +6 | pbcopy
+
+# Linux
+python standup.py | tail -n +6 | xclip -selection clipboard
+```
+
+**Cron — tous les matins à 9h (lun–ven) :**
+```
+0 9 * * 1-5 cd /path/to/scripts && python standup.py | tail -n +6 | pbcopy
+```
+
+---
+
+## Récupérer ton Notion token
+
+1. Va sur [notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Crée une nouvelle integration
+3. Copie le token `secret_...`
+4. Dans ta page Notion work tracker → `...` → **Connections** → ajoute ton integration
+
+## Récupérer ton Linear token
+
+1. Va sur [linear.app](https://linear.app) → Settings → API
+2. Section **Personal API keys** → Create key
