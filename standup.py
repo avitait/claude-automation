@@ -13,13 +13,15 @@ Cron (every weekday at 9am):
 """
 
 import os
-import requests
 from datetime import datetime, timedelta, timezone
+
+import requests
 
 # ── Config ────────────────────────────────────────────────────────────────────
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 GITHUB_USERNAME = os.environ["GITHUB_USERNAME"]
-LINEAR_TOKEN = os.environ["LINEAR_TOKEN"]  # Settings > API > Personal API keys
+LINEAR_TOKEN = os.environ["LINEAR_TOKEN"]
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 # ──────────────────────────────────────────────────────────────────────────────
 
 GH_HEADERS = {
@@ -28,21 +30,26 @@ GH_HEADERS = {
 }
 
 
+def _lookback_days() -> int:
+    """Return 3 on Monday (to cover Fri→Mon), 1 otherwise."""
+    return 3 if datetime.now().weekday() == 0 else 1
+
+
 # ── GitHub ────────────────────────────────────────────────────────────────────
 
 
 def fetch_yesterday_prs() -> dict:
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    since = (datetime.now() - timedelta(days=_lookback_days())).strftime("%Y-%m-%d")
     today = datetime.now().strftime("%Y-%m-%d")
 
     merged_url = (
         f"https://api.github.com/search/issues"
-        f"?q=author:{GITHUB_USERNAME}+type:pr+merged:{yesterday}..{today}"
+        f"?q=author:{GITHUB_USERNAME}+type:pr+merged:{since}..{today}"
         f"&per_page=20"
     )
     opened_url = (
         f"https://api.github.com/search/issues"
-        f"?q=author:{GITHUB_USERNAME}+type:pr+created:{yesterday}..{today}"
+        f"?q=author:{GITHUB_USERNAME}+type:pr+created:{since}..{today}"
         f"&per_page=20"
     )
 
@@ -74,7 +81,7 @@ query MyIssues($updatedAt: DateTimeOrDuration) {
 
 
 def fetch_linear_issues() -> list[dict]:
-    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(days=_lookback_days())).isoformat()
     resp = requests.post(
         "https://api.linear.app/graphql",
         headers={
@@ -110,7 +117,8 @@ def build_standup(issues: list[dict], prs: dict) -> str:
     lines.append(f"*Standup — {today_str}*\n")
 
     # ✅ Done
-    lines.append("✅ *Done hier*")
+    period = "vendredi" if datetime.now().weekday() == 0 else "hier"
+    lines.append(f"✅ *Done {period}*")
     if not done_issues and not merged_prs:
         lines.append("— rien de completé")
     for i in done_issues:
@@ -136,6 +144,18 @@ def build_standup(issues: list[dict], prs: dict) -> str:
     return "\n".join(lines)
 
 
+# ── Slack ─────────────────────────────────────────────────────────────────────
+
+
+def post_to_slack(text: str) -> None:
+    if not SLACK_WEBHOOK_URL:
+        print("⚠️  SLACK_WEBHOOK_URL not set, skipping Slack post")
+        return
+    resp = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
+    resp.raise_for_status()
+    print("✅ Standup posté sur Slack !")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
@@ -143,7 +163,8 @@ def main():
     print("🔄 Fetching Linear issues...")
     try:
         issues = fetch_linear_issues()
-        print(f"   {len(issues)} issues updated in last 24h")
+        days = _lookback_days()
+        print(f"   {len(issues)} issues updated in last {days * 24}h")
     except Exception as e:
         print(f"   ⚠️  Linear error: {e}")
         issues = []
@@ -161,7 +182,8 @@ def main():
     print("\n" + "─" * 50)
     print(standup)
     print("─" * 50)
-    print("\n✅ Copie le texte ci-dessus dans Slack !")
+
+    post_to_slack(standup)
 
 
 if __name__ == "__main__":

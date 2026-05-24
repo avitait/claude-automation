@@ -12,6 +12,7 @@ Crée un fichier `.env` (ou exporte dans ton shell) :
 export GITHUB_TOKEN="ghp_..."       # github.com > Settings > Developer settings > PAT
 export NOTION_TOKEN="secret_..."    # notion.so > Settings > Integrations > New integration
 export LINEAR_TOKEN="lin_api_..."   # linear.app > Settings > API > Personal API keys
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"  # voir section ci-dessous
 ```
 
 ---
@@ -33,22 +34,20 @@ python work_tracker.py
 
 ## standup.py
 
-Fetch tes tickets Linear updated + tes PRs GitHub d'hier, et génère un standup prêt à coller dans Slack.
+Fetch tes tickets Linear updated + tes PRs GitHub d'hier, et poste le standup directement sur Slack.
+Le lundi, le script remonte jusqu'à vendredi automatiquement.
 
 ```bash
 # Affiche dans le terminal
 python standup.py
 
-# Copie directement dans le clipboard (macOS)
-python standup.py | tail -n +6 | pbcopy
-
-# Linux
-python standup.py | tail -n +6 | xclip -selection clipboard
+# Avec post Slack (si SLACK_WEBHOOK_URL est défini)
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." python standup.py
 ```
 
 **Cron — tous les matins à 9h (lun–ven) :**
 ```
-0 9 * * 1-5 cd /path/to/scripts && python standup.py | tail -n +6 | pbcopy
+0 9 * * 1-5 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." cd /path/to/scripts && python standup.py
 ```
 
 ---
@@ -64,3 +63,11 @@ python standup.py | tail -n +6 | xclip -selection clipboard
 
 1. Va sur [linear.app](https://linear.app) → Settings → API
 2. Section **Personal API keys** → Create key
+
+## Récupérer ton Slack Webhook URL
+
+1. Va sur [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**
+2. Donne un nom (ex: "Standup Bot") et sélectionne ton workspace
+3. Dans le menu à gauche → **Incoming Webhooks** → active le toggle
+4. Clique **Add New Webhook to Workspace** → choisis le channel
+5. Copie l'URL `https://hooks.slack.com/services/T.../B.../xxx`
